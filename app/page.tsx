@@ -1,120 +1,66 @@
 'use client';
-import React, { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { fetchTasks } from '../services/api';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import type { Todo } from '../types/todo';
+    import React, { useEffect, useState } from 'react';
+    import { useParams, useRouter } from 'next/navigation';
+    import { fetchTaskById, updateTask } from '../../../../services/api';
+    import { useAuth } from '../../../../context/AuthContext';
+    import type { Todo } from '../../../../types/todo';
 
-export default function Home(): JSX.Element {
-  const { user, logout } = useAuth();
-  const router = useRouter();
-  const [tasks, setTasks] = useState<Todo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<string>('all');
+    export default function EditTodoPage(): JSX.Element {
+    const { id } = useParams();
+    const router = useRouter();
+    const { user } = useAuth();
+    const [todo, setTodo] = useState<Todo | null>(null);
+    const [title, setTitle] = useState('');
+    const [description, setDescription] = useState('');
+    const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      try {
-        const data = await fetchTasks(user.id as any);
-        setTasks(data);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [user]);
+    useEffect(() => {
+        async function load() {
+        if (!id) return;
+        try {
+            const data = await fetchTaskById(id);
+            setTodo(data);
+            setTitle(data.title ?? data.name ?? data.text ?? '');
+            setDescription(data.description ?? '');
+        } catch (e) {
+            router.replace('/todos');
+        }
+        }
+        load();
+    }, [id, router]);
 
-  useEffect(() => {
-    if (!user) router.replace('/login');
-  }, [user, router]);
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!todo) return;
+        setSaving(true);
+        try {
+        await updateTask(todo.id, { title, description }, user?.id);
+        router.push(/todos/${todo.id});
+        } catch (err) {
+        console.error(err);
+        alert('Update failed.');
+        } finally {
+        setSaving(false);
+        }
+    };
 
-  if (!user) return <div className="p-8">Redirecting...</div>;
+    if (!todo) return <div className="spinner" />;
 
-  const filtered = tasks.filter(
-    (t) =>
-      (t.name ?? '').toLowerCase().includes(search.toLowerCase()) &&
-      (status === 'all' || t.status === status)
-  );
-
-  return (
-    <main className="max-w-6xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">📋 Task List</h1>
-          <p className="text-sm text-slate-600">
-            Welcome, <span className="font-medium">{user.username}</span>
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Link
-            href="/create"
-            className="inline-flex items-center px-4 py-2 bg-sky-600 text-white rounded shadow hover:bg-sky-700"
-          >
-            + New Task
-          </Link>
-          <button
-            onClick={() => {
-              logout();
-              router.push('/login');
-            }}
-            className="px-3 py-2 border rounded"
-          >
-            Logout
-          </button>
-        </div>
-      </div>
-
-      <div className="flex gap-3 mb-6">
-        <input
-          className="flex-1 px-3 py-2 border rounded"
-          placeholder="Search task name..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="px-3 py-2 border rounded"
-        >
-          <option value="all">All Statuses</option>
-          <option value="TODO">TODO</option>
-          <option value="IN_PROGRESS">IN PROGRESS</option>
-          <option value="DONE">DONE</option>
-        </select>
-      </div>
-
-      {loading ? (
-        <div className="text-center py-8">Loading...</div>
-      ) : (
-      <ul className="grid gap-4">
-        {filtered.map((task) => (
-          <li
-            key={String(task.id)}
-            className="bg-white shadow-sm rounded p-4 flex items-start justify-between"
-          >
-            <div>
-              <h3 className="text-lg font-semibold">{task.name}</h3>
-              <p className="text-sm text-slate-600 mt-1">
-                Status: <span className="font-medium">{task.status}</span> · Priority:{' '}
-                <span>{task.priority}</span>
-              </p>
+    return (
+        <section>
+        <h2 className="text-2xl mb-4">Edit Todo</h2>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            <input value={title} onChange={(e) => setTitle(e.target.value)} className="form-control" />
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="form-control" />
+            <div className="flex gap-3">
+            <button type="submit" className="btn" disabled={saving}>
+                {saving ? 'Saving...' : 'Save'}
+            </button>
+            <button type="button" className="btn" onClick={() => router.back()}>
+                Cancel
+            </button>
             </div>
-            <div className="flex flex-col gap-2">
-              <Link
-                href={`/todos/${task.id}`}
-                className="inline-flex items-center px-3 py-1 border rounded text-sm hover:bg-slate-100"
-              >
-                View
-              </Link>
-            </div>
-          </li>
-        ))}
-      </ul>
-      )}
-    </main>
-  );
-}
+        </form>
+        </section>
+    );
+    }
